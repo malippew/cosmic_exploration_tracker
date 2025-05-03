@@ -43,6 +43,7 @@ class CosmicApp {
             serverSearch: '',
             refreshInProgress: false
         };
+        this.lastDiffs = {};
         this.cacheDom();
         this.addEventListeners();
         this.init();
@@ -127,13 +128,6 @@ class CosmicApp {
 
     displayPagination() {
         const ranking = this.getFilteredRanking();
-        // Récupère l'état précédent depuis le localStorage
-        let previousState = {};
-        try {
-            previousState = JSON.parse(localStorage.getItem('previousRankingState') || '{}');
-        } catch (e) {
-            previousState = {};
-        }
         if (!ranking || ranking.length === 0) {
             this.dom.rankingTableBody.innerHTML = `<tr><td colspan="6" class="no-data">Aucune donnée disponible</td></tr>`;
             this.dom.prevPage.disabled = true;
@@ -150,20 +144,17 @@ class CosmicApp {
         this.dom.rankingTableBody.innerHTML = '';
         pageData.forEach(row => {
             const statusClass = row.statusText.toLowerCase().includes('complete') ? 'status-complete' : 'status-progress';
-            // Cherche l'état précédent pour ce serveur
-            const prev = previousState[row.serverName];
+            const diffs = this.lastDiffs[row.serverName] || {};
             let gradeChange = '';
             let progressChange = '';
-            if (prev) {
-                if (row.grade !== prev.grade) {
-                    gradeChange = `<span class="change-indicator" title="Grade précédent: ${prev.grade}">★</span>`;
-                }
-                if (row.progress !== prev.progress) {
-                    const diff = parseFloat(row.progress) - parseFloat(prev.progress);
-                    if (diff > 0) progressChange = `<span class="change-indicator up" title="+${diff.toFixed(2)}%">↑</span>`;
-                    else if (diff < 0) progressChange = `<span class="change-indicator down" title="${diff.toFixed(2)}%">↓</span>`;
-                }
+
+            if (diffs.gradeChanged) {
+                gradeChange = `<span class="change-indicator" title="Grade précédent: ${row.grade}">★</span>`;
             }
+            if (diffs.progressDiff > 0.01) {
+                progressChange = `<span class="change-indicator up" title="+${diffs.progressDiff.toFixed(2)}%">↑</span>`;
+            }
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>#${row.rank}</td>
@@ -188,7 +179,6 @@ class CosmicApp {
     async updateAndDisplay() {
         if (this.state.refreshInProgress) return;
         this.state.refreshInProgress = true;
-        // Met à jour immédiatement les timers pour une meilleure réactivité
         this.state.lastUpdateTime = new Date();
         this.state.nextUpdateTime = calculateNextUpdateTime();
         this.dom.lastUpdateTime.textContent = formatDateTime(this.state.lastUpdateTime);
@@ -197,13 +187,37 @@ class CosmicApp {
         try {
             await this.scraper.fetchHtml();
             await this.scraper.scrape();
-            // Sauvegarde l'état courant dans le localStorage pour la prochaine comparaison
             const ranking = this.scraper.createRanking('all');
+            let previousState = {};
+            try {
+                previousState = JSON.parse(localStorage.getItem('previousRankingState') || '{}');
+            } catch (e) {
+                previousState = {};
+            }
+            this.lastDiffs = {};
+            ranking.forEach(row => {
+                const prev = previousState[row.serverName];
+                let gradeChanged = false;
+                let progressDiff = 0;
+                if (prev) {
+                    if (Number(row.grade) !== Number(prev.grade)) {
+                        gradeChanged = true;
+                    }
+                    if (typeof prev.progressNum !== 'undefined' && typeof row.progressPercentage !== 'undefined') {
+                        progressDiff = row.progressPercentage * 100 - prev.progressNum;
+                    }
+                }
+                this.lastDiffs[row.serverName] = {
+                    gradeChanged,
+                    progressDiff
+                };
+            });
             const stateToStore = {};
             ranking.forEach(row => {
                 stateToStore[row.serverName] = {
                     grade: row.grade,
-                    progress: row.progress
+                    progress: row.progress,
+                    progressNum: row.progressPercentage * 100
                 };
             });
             localStorage.setItem('previousRankingState', JSON.stringify(stateToStore));
