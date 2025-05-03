@@ -251,6 +251,25 @@ footer a:hover {
     background: #fff;
 }
 
+/* Indicateurs de changement de progression */
+.change-indicator {
+    margin-left: 6px;
+    font-size: 1.1em;
+    vertical-align: middle;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+
+.change-indicator.up {
+    color: var(--success-color);
+    /* vert */
+}
+
+.change-indicator.down {
+    color: var(--danger-color);
+    /* rouge */
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .info-panel {
