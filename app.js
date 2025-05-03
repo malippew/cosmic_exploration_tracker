@@ -19,7 +19,7 @@ const calculateNextUpdateTime = () => {
     const now = new Date();
     const min = now.getMinutes();
     const next = new Date(now);
-    if (min > 2 && min < 32) {
+    if (min >= 2 && min < 32) {
         next.setMinutes(32, 0, 0);
     } else if (min >= 32) {
         next.setHours(now.getHours() + 1, 2, 0, 0);
