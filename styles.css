@@ -226,6 +226,31 @@ footer a:hover {
     text-decoration: underline;
 }
 
+/* Barre de recherche serveur */
+.search-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-left: 1rem;
+}
+
+#serverSearch {
+    padding: 8px 14px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    background: #f9f9f9;
+    min-width: 220px;
+}
+
+#serverSearch:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 2px #e0e0ff;
+    background: #fff;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .info-panel {

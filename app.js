@@ -40,6 +40,7 @@ class CosmicApp {
             currentPage: 1,
             itemsPerPage: 10,
             selectedDataCenter: 'all',
+            serverSearch: '',
             refreshInProgress: false
         };
         this.cacheDom();
@@ -53,6 +54,7 @@ class CosmicApp {
             nextUpdateTime: document.getElementById('nextUpdateTime'),
             countdownTimer: document.getElementById('countdownTimer'),
             datacenterFilter: document.getElementById('datacenterFilter'),
+            serverSearch: document.getElementById('serverSearch'),
             rankingTableBody: document.getElementById('rankingTableBody'),
             prevPage: document.getElementById('prevPage'),
             nextPage: document.getElementById('nextPage'),
@@ -63,6 +65,11 @@ class CosmicApp {
     addEventListeners() {
         this.dom.datacenterFilter.addEventListener('change', () => {
             this.state.selectedDataCenter = this.dom.datacenterFilter.value;
+            this.state.currentPage = 1;
+            this.displayPagination();
+        });
+        this.dom.serverSearch.addEventListener('input', () => {
+            this.state.serverSearch = this.dom.serverSearch.value.trim();
             this.state.currentPage = 1;
             this.displayPagination();
         });
@@ -81,8 +88,17 @@ class CosmicApp {
         });
     }
 
+    getFilteredRanking() {
+        let ranking = this.scraper.createRanking(this.state.selectedDataCenter);
+        if (this.state.serverSearch && this.state.serverSearch.length > 0) {
+            const search = this.state.serverSearch.toLowerCase();
+            ranking = ranking.filter(row => row.serverName.toLowerCase().includes(search));
+        }
+        return ranking;
+    }
+
     getTotalPages() {
-        const ranking = this.scraper.createRanking(this.state.selectedDataCenter);
+        const ranking = this.getFilteredRanking();
         return Math.max(1, Math.ceil(ranking.length / this.state.itemsPerPage));
     }
 
@@ -110,7 +126,14 @@ class CosmicApp {
     }
 
     displayPagination() {
-        const ranking = this.scraper.createRanking(this.state.selectedDataCenter);
+        const ranking = this.getFilteredRanking();
+        // Récupère l'état précédent depuis le localStorage
+        let previousState = {};
+        try {
+            previousState = JSON.parse(localStorage.getItem('previousRankingState') || '{}');
+        } catch (e) {
+            previousState = {};
+        }
         if (!ranking || ranking.length === 0) {
             this.dom.rankingTableBody.innerHTML = `<tr><td colspan="6" class="no-data">Aucune donnée disponible</td></tr>`;
             this.dom.prevPage.disabled = true;
@@ -127,17 +150,31 @@ class CosmicApp {
         this.dom.rankingTableBody.innerHTML = '';
         pageData.forEach(row => {
             const statusClass = row.statusText.toLowerCase().includes('complete') ? 'status-complete' : 'status-progress';
+            // Cherche l'état précédent pour ce serveur
+            const prev = previousState[row.serverName];
+            let gradeChange = '';
+            let progressChange = '';
+            if (prev) {
+                if (row.grade !== prev.grade) {
+                    gradeChange = `<span class="change-indicator" title="Grade précédent: ${prev.grade}">★</span>`;
+                }
+                if (row.progress !== prev.progress) {
+                    const diff = parseFloat(row.progress) - parseFloat(prev.progress);
+                    if (diff > 0) progressChange = `<span class="change-indicator up" title="+${diff.toFixed(2)}%">↑</span>`;
+                    else if (diff < 0) progressChange = `<span class="change-indicator down" title="${diff.toFixed(2)}%">↓</span>`;
+                }
+            }
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>#${row.rank}</td>
                 <td>${row.serverName}</td>
                 <td>${row.dataCenter}</td>
-                <td>${row.grade}</td>
+                <td>${row.grade} ${gradeChange}</td>
                 <td>
                     <div class="progress-bar">
                         <div class="progress-bar-fill" style="width: ${row.progress}"></div>
                     </div>
-                    ${row.progress}
+                    ${row.progress} ${progressChange}
                 </td>
                 <td class="${statusClass}">${row.statusText}</td>
             `;
@@ -151,13 +188,25 @@ class CosmicApp {
     async updateAndDisplay() {
         if (this.state.refreshInProgress) return;
         this.state.refreshInProgress = true;
+        // Met à jour immédiatement les timers pour une meilleure réactivité
+        this.state.lastUpdateTime = new Date();
+        this.state.nextUpdateTime = calculateNextUpdateTime();
+        this.dom.lastUpdateTime.textContent = formatDateTime(this.state.lastUpdateTime);
+        this.dom.nextUpdateTime.textContent = formatDateTime(this.state.nextUpdateTime);
+        this.dom.countdownTimer.textContent = formatTimeRemaining((this.state.nextUpdateTime - this.state.lastUpdateTime) / 1000);
         try {
             await this.scraper.fetchHtml();
             await this.scraper.scrape();
-            this.state.lastUpdateTime = new Date();
-            this.state.nextUpdateTime = calculateNextUpdateTime();
-            this.dom.lastUpdateTime.textContent = formatDateTime(this.state.lastUpdateTime);
-            this.dom.nextUpdateTime.textContent = formatDateTime(this.state.nextUpdateTime);
+            // Sauvegarde l'état courant dans le localStorage pour la prochaine comparaison
+            const ranking = this.scraper.createRanking('all');
+            const stateToStore = {};
+            ranking.forEach(row => {
+                stateToStore[row.serverName] = {
+                    grade: row.grade,
+                    progress: row.progress
+                };
+            });
+            localStorage.setItem('previousRankingState', JSON.stringify(stateToStore));
             this.populateDataCenterFilter();
             this.displayPagination();
             if (this.state.countdownInterval) clearInterval(this.state.countdownInterval);
@@ -173,6 +222,7 @@ class CosmicApp {
     }
 
     init() {
+        this.state.serverSearch = '';
         this.updateAndDisplay();
     }
 }
