@@ -195,37 +195,46 @@ class CosmicApp {
                 previousState = {};
             }
 
-            // Vérifiez si cette mise à jour correspond à une nouvelle période de données FFXIV
-            // Les données FFXIV Lodestone sont mises à jour à XX:00 et XX:30 (nous récupérons à XX:02 et XX:32)
-            const lastSuccessfulUpdate = localStorage.getItem('lastDataUpdateTime');
-            const currentUpdateCycle = this.getCurrentUpdateCycle(this.state.lastUpdateTime);
-            const lastUpdateCycle = lastSuccessfulUpdate ? this.getCurrentUpdateCycle(new Date(lastSuccessfulUpdate)) : null;
+            // Récupérer les différences stockées précédemment (important pour les rechargements de page)
+            try {
+                this.lastDiffs = JSON.parse(localStorage.getItem('lastCalculatedDiffs') || '{}');
+            } catch (e) {
+                this.lastDiffs = {};
+            }
 
-            // Si nous avons changé de cycle de mise à jour ou si c'est la première mise à jour
-            const shouldUpdateReference = !lastUpdateCycle || currentUpdateCycle !== lastUpdateCycle;
+            // Vérifier si nous avons changé de cycle de mise à jour
+            const currentCycle = this.getCurrentCycle();
+            const lastCycle = localStorage.getItem('lastUpdateCycle');
+            const cycleChanged = !lastCycle || currentCycle !== lastCycle;
 
-            // Calculer les différences par rapport au dernier état de référence
-            this.lastDiffs = {};
-            ranking.forEach(row => {
-                const prev = previousState[row.serverName];
-                let gradeChanged = false;
-                let progressDiff = 0;
-                if (prev) {
-                    if (Number(row.grade) !== Number(prev.grade)) {
-                        gradeChanged = true;
+            if (cycleChanged) {
+                console.log(`Nouveau cycle détecté: ${currentCycle} (précédent: ${lastCycle})`);
+
+                // Calculer les nouvelles différences uniquement si le cycle a changé
+                this.lastDiffs = {};
+                ranking.forEach(row => {
+                    const prev = previousState[row.serverName];
+                    let gradeChanged = false;
+                    let progressDiff = 0;
+                    if (prev) {
+                        if (Number(row.grade) !== Number(prev.grade)) {
+                            gradeChanged = true;
+                        }
+                        if (typeof prev.progressNum !== 'undefined' && typeof row.progressPercentage !== 'undefined') {
+                            progressDiff = row.progressPercentage * 100 - prev.progressNum;
+                        }
                     }
-                    if (typeof prev.progressNum !== 'undefined' && typeof row.progressPercentage !== 'undefined') {
-                        progressDiff = row.progressPercentage * 100 - prev.progressNum;
-                    }
-                }
-                this.lastDiffs[row.serverName] = {
-                    gradeChanged,
-                    progressDiff
-                };
-            });
+                    this.lastDiffs[row.serverName] = {
+                        gradeChanged,
+                        progressDiff
+                    };
+                });
 
-            // Ne mettre à jour les données de référence que si nous avons changé de cycle
-            if (shouldUpdateReference) {
+                // Stocker les nouvelles différences calculées pour les prochains rechargements de page
+                localStorage.setItem('lastCalculatedDiffs', JSON.stringify(this.lastDiffs));
+                localStorage.setItem('lastUpdateCycle', currentCycle);
+
+                // Mettre à jour l'état de référence pour le prochain cycle
                 const stateToStore = {};
                 ranking.forEach(row => {
                     stateToStore[row.serverName] = {
@@ -235,10 +244,9 @@ class CosmicApp {
                     };
                 });
                 localStorage.setItem('previousRankingState', JSON.stringify(stateToStore));
-                localStorage.setItem('lastDataUpdateTime', this.state.lastUpdateTime.toISOString());
-                console.log('Données de référence mises à jour pour le cycle', currentUpdateCycle);
             } else {
-                console.log('Toujours dans le même cycle de mise à jour:', currentUpdateCycle, '- Conservation des données de référence');
+                console.log(`Toujours dans le même cycle: ${currentCycle}, utilisation des différences déjà calculées`);
+                // Nous utilisons this.lastDiffs déjà chargé depuis localStorage
             }
 
             this.populateDataCenterFilter();
@@ -246,8 +254,6 @@ class CosmicApp {
             if (this.state.countdownInterval) clearInterval(this.state.countdownInterval);
             this.state.countdownInterval = setInterval(this.updateCountdown, 1000);
             this.updateCountdown();
-
-            // On conserve toujours l'heure de la dernière mise à jour
             localStorage.setItem('lastUpdateTime', this.state.lastUpdateTime.toISOString());
         } catch (error) {
             console.error('Erreur lors de la mise à jour des données:', error);
@@ -256,21 +262,28 @@ class CosmicApp {
             this.state.refreshInProgress = false;
         }
     }
-    getCurrentUpdateCycle(date) {
-        const hours = date.getHours();
-        const minutes = date.getMinutes();
+    getCurrentCycle() {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const day = now.getDate();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
 
-        // Les données sont considérées comme provenant du cycle XX:02 si nous sommes entre XX:02 et XX:31
-        // Et du cycle XX:32 si nous sommes entre XX:32 et XX:01 de l'heure suivante
+        let cycleMinutes;
+        let cycleHours = hours;
+
         if (minutes >= 2 && minutes < 32) {
-            return `${hours}:02`; // Cycle qui reflète les données de XX:00 du Lodestone + 2min de délai
+            cycleMinutes = "02";
         } else if (minutes >= 32) {
-            return `${hours}:32`; // Cycle qui reflète les données de XX:30 du Lodestone + 2min de délai
+            cycleMinutes = "32";
         } else { // minutes 0-1
-            // Nous sommes techniquement encore dans le cycle précédent
-            const prevHour = (hours - 1 + 24) % 24;
-            return `${prevHour}:32`;
+            cycleMinutes = "32";
+            cycleHours = (hours - 1 + 24) % 24;
         }
+
+        // Format: YYYY-MM-DD-HH:MM
+        return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}-${cycleHours.toString().padStart(2, '0')}:${cycleMinutes}`;
     }
 
     init() {
