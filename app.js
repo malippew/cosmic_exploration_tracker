@@ -195,15 +195,16 @@ class CosmicApp {
                 previousState = {};
             }
 
-            // Vérifiez si nous avons un horodatage pour la dernière mise à jour des données de référence
-            const lastReferenceUpdate = localStorage.getItem('lastReferenceUpdate');
-            const currentTime = new Date().getTime();
+            // Vérifiez si cette mise à jour correspond à une nouvelle période de données FFXIV
+            // Les données FFXIV Lodestone sont mises à jour à XX:00 et XX:30 (nous récupérons à XX:02 et XX:32)
+            const lastSuccessfulUpdate = localStorage.getItem('lastDataUpdateTime');
+            const currentUpdateCycle = this.getCurrentUpdateCycle(this.state.lastUpdateTime);
+            const lastUpdateCycle = lastSuccessfulUpdate ? this.getCurrentUpdateCycle(new Date(lastSuccessfulUpdate)) : null;
 
-            // Calculez la différence et déterminez si les données de référence doivent être mises à jour
-            // (par exemple, mettre à jour les données de référence toutes les 30 minutes)
-            const shouldUpdateReference = !lastReferenceUpdate ||
-                (currentTime - new Date(lastReferenceUpdate).getTime()) >= 30 * 60 * 1000;
+            // Si nous avons changé de cycle de mise à jour ou si c'est la première mise à jour
+            const shouldUpdateReference = !lastUpdateCycle || currentUpdateCycle !== lastUpdateCycle;
 
+            // Calculer les différences par rapport au dernier état de référence
             this.lastDiffs = {};
             ranking.forEach(row => {
                 const prev = previousState[row.serverName];
@@ -223,7 +224,7 @@ class CosmicApp {
                 };
             });
 
-            // Ne mettre à jour les données de référence que si le délai est écoulé
+            // Ne mettre à jour les données de référence que si nous avons changé de cycle
             if (shouldUpdateReference) {
                 const stateToStore = {};
                 ranking.forEach(row => {
@@ -234,8 +235,10 @@ class CosmicApp {
                     };
                 });
                 localStorage.setItem('previousRankingState', JSON.stringify(stateToStore));
-                localStorage.setItem('lastReferenceUpdate', new Date().toISOString());
-                console.log('Données de référence mises à jour');
+                localStorage.setItem('lastDataUpdateTime', this.state.lastUpdateTime.toISOString());
+                console.log('Données de référence mises à jour pour le cycle', currentUpdateCycle);
+            } else {
+                console.log('Toujours dans le même cycle de mise à jour:', currentUpdateCycle, '- Conservation des données de référence');
             }
 
             this.populateDataCenterFilter();
@@ -243,12 +246,30 @@ class CosmicApp {
             if (this.state.countdownInterval) clearInterval(this.state.countdownInterval);
             this.state.countdownInterval = setInterval(this.updateCountdown, 1000);
             this.updateCountdown();
+
+            // On conserve toujours l'heure de la dernière mise à jour
             localStorage.setItem('lastUpdateTime', this.state.lastUpdateTime.toISOString());
         } catch (error) {
             console.error('Erreur lors de la mise à jour des données:', error);
             this.dom.rankingTableBody.innerHTML = `<tr><td colspan="6" class="error"><i class="fas fa-exclamation-triangle"></i> Erreur lors de la récupération des données. Veuillez réessayer.</td></tr>`;
         } finally {
             this.state.refreshInProgress = false;
+        }
+    }
+    getCurrentUpdateCycle(date) {
+        const hours = date.getHours();
+        const minutes = date.getMinutes();
+
+        // Les données sont considérées comme provenant du cycle XX:02 si nous sommes entre XX:02 et XX:31
+        // Et du cycle XX:32 si nous sommes entre XX:32 et XX:01 de l'heure suivante
+        if (minutes >= 2 && minutes < 32) {
+            return `${hours}:02`; // Cycle qui reflète les données de XX:00 du Lodestone + 2min de délai
+        } else if (minutes >= 32) {
+            return `${hours}:32`; // Cycle qui reflète les données de XX:30 du Lodestone + 2min de délai
+        } else { // minutes 0-1
+            // Nous sommes techniquement encore dans le cycle précédent
+            const prevHour = (hours - 1 + 24) % 24;
+            return `${prevHour}:32`;
         }
     }
 
