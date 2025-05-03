@@ -2,6 +2,13 @@
  * FFXIVCosmicScraper - Une classe pour récupérer et traiter les données 
  * d'exploration cosmique de FFXIV Lodestone
  */
+
+// Utility function for safe DOM query
+function safeQuery(parent, selector) {
+    const el = parent.querySelector(selector);
+    return el ? el.textContent.trim() : '';
+}
+
 class FFXIVCosmicScraper {
     /**
      * Constructeur
@@ -65,8 +72,7 @@ class FFXIVCosmicScraper {
      * @returns {Document} - Document DOM
      */
     createDOM(html) {
-        const parser = new DOMParser();
-        return parser.parseFromString(html, 'text/html');
+        return new DOMParser().parseFromString(html, 'text/html');
     }
 
     /**
@@ -85,44 +91,42 @@ class FFXIVCosmicScraper {
         const result = [];
 
         dataCenters.forEach(dc => {
-            const dcName = dc.querySelector('.cosmic__report__dc__title').textContent.trim();
-            const servers = dc.querySelectorAll('.cosmic__report__card');
-
-            servers.forEach(server => {
-                const serverName = server.querySelector('.cosmic__report__card__name').textContent.trim();
+            const dcName = safeQuery(dc, '.cosmic__report__dc__title');
+            dc.querySelectorAll('.cosmic__report__card').forEach(server => {
+                const serverName = safeQuery(server, '.cosmic__report__card__name');
 
                 // Récupérer le grade (niveau)
-                const gradeElement = server.querySelector('.cosmic__report__grade__level');
-                let grade = gradeElement ? parseInt(gradeElement.querySelector('p').textContent.trim()) : 0;
+                let grade = 0;
+                const gradeElement = server.querySelector('.cosmic__report__grade__level p');
+                if (gradeElement) grade = parseInt(gradeElement.textContent.trim());
 
                 // Récupérer le texte de statut
-                const statusText = server.querySelector('.cosmic__report__status__text').textContent.trim();
+                const statusText = safeQuery(server, '.cosmic__report__status__text');
 
                 if (statusText.toLowerCase().includes('complete')) {
                     grade -= 1;
                 }
 
                 // Récupérer la valeur de la jauge
+                let gaugeClass = 'gauge-0';
                 const progressBar = server.querySelector('.cosmic__report__status__progress__bar');
-                let gaugeClass = progressBar && progressBar.classList ?
-                    Array.from(progressBar.classList).filter(c => c.startsWith('gauge-')).pop() : 'gauge-0';
-
-                const transition = server.querySelector('.cosmic__report__status__progress');
-                const transitionP = transition ? transition.querySelector('p') : null;
-
-                if (transitionP) {
-                    gaugeClass = 'gauge-max';
+                if (progressBar && progressBar.classList) {
+                    const found = Array.from(progressBar.classList).find(c => c.startsWith('gauge-'));
+                    if (found) gaugeClass = found;
                 }
+
+                const transitionP = server.querySelector('.cosmic__report__status__progress p');
+                if (transitionP) gaugeClass = 'gauge-max';
 
                 const progressPercentage = this.parseGaugeValue(gaugeClass);
 
                 const serverData = {
-                    serverName: serverName,
+                    serverName,
                     dataCenter: dcName,
-                    grade: grade,
-                    progressPercentage: progressPercentage,
+                    grade,
+                    progressPercentage,
                     rawGauge: gaugeClass,
-                    statusText: statusText
+                    statusText
                 };
 
                 result.push(serverData);
@@ -152,46 +156,30 @@ class FFXIVCosmicScraper {
         }
 
         // Trier par grade (décroissant) et progressPercentage (décroissant)
-        data.sort((a, b) => {
-            if (a.grade !== b.grade) {
-                return b.grade - a.grade;
-            }
-            return b.progressPercentage - a.progressPercentage;
-        });
+        data.sort((a, b) => b.grade - a.grade || b.progressPercentage - a.progressPercentage);
 
         // Créer un classement approprié avec rang dense (tenant compte des égalités)
         let rank = 1;
         let currentPosition = 0;
         let currentKey = null;
         const rankMapping = {};
+        const groupCounts = new Map();
 
         // Regrouper les données par grade et pourcentage de progression
-        const groupCounts = new Map();
         data.forEach(item => {
             const key = `${item.grade}_${item.progressPercentage}`;
-            if (groupCounts.has(key)) {
-                groupCounts.set(key, groupCounts.get(key) + 1);
-            } else {
-                groupCounts.set(key, 1);
-            }
+            groupCounts.set(key, (groupCounts.get(key) || 0) + 1);
         });
 
         // Générer les rangs en tenant compte des égalités
         const sortedGroups = Array.from(groupCounts.entries()).sort((a, b) => {
-            const [keyA, _] = a;
-            const [keyB, __] = b;
-            const [gradeA, progressA] = keyA.split('_').map(Number);
-            const [gradeB, progressB] = keyB.split('_').map(Number);
+            const [gradeA, progressA] = a[0].split('_').map(Number);
+            const [gradeB, progressB] = b[0].split('_').map(Number);
 
-            if (gradeA !== gradeB) {
-                return gradeB - gradeA;
-            }
-            return progressB - progressA;
+            return gradeB - gradeA || progressB - progressA;
         });
 
         sortedGroups.forEach(([key, count]) => {
-            const [grade, progress] = key.split('_').map(Number);
-
             if (currentKey !== key) {
                 currentKey = key;
                 rankMapping[key] = rank;
@@ -225,8 +213,6 @@ class FFXIVCosmicScraper {
             return [];
         }
 
-        const dataCenters = new Set();
-        this.data.forEach(item => dataCenters.add(item.dataCenter));
-        return Array.from(dataCenters).sort();
+        return Array.from(new Set(this.data.map(item => item.dataCenter))).sort();
     }
 }
