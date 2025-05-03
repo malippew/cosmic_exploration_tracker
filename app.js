@@ -194,6 +194,16 @@ class CosmicApp {
             } catch (e) {
                 previousState = {};
             }
+
+            // Vérifiez si nous avons un horodatage pour la dernière mise à jour des données de référence
+            const lastReferenceUpdate = localStorage.getItem('lastReferenceUpdate');
+            const currentTime = new Date().getTime();
+
+            // Calculez la différence et déterminez si les données de référence doivent être mises à jour
+            // (par exemple, mettre à jour les données de référence toutes les 30 minutes)
+            const shouldUpdateReference = !lastReferenceUpdate ||
+                (currentTime - new Date(lastReferenceUpdate).getTime()) >= 30 * 60 * 1000;
+
             this.lastDiffs = {};
             ranking.forEach(row => {
                 const prev = previousState[row.serverName];
@@ -212,15 +222,22 @@ class CosmicApp {
                     progressDiff
                 };
             });
-            const stateToStore = {};
-            ranking.forEach(row => {
-                stateToStore[row.serverName] = {
-                    grade: row.grade,
-                    progress: row.progress,
-                    progressNum: row.progressPercentage * 100
-                };
-            });
-            localStorage.setItem('previousRankingState', JSON.stringify(stateToStore));
+
+            // Ne mettre à jour les données de référence que si le délai est écoulé
+            if (shouldUpdateReference) {
+                const stateToStore = {};
+                ranking.forEach(row => {
+                    stateToStore[row.serverName] = {
+                        grade: row.grade,
+                        progress: row.progress,
+                        progressNum: row.progressPercentage * 100
+                    };
+                });
+                localStorage.setItem('previousRankingState', JSON.stringify(stateToStore));
+                localStorage.setItem('lastReferenceUpdate', new Date().toISOString());
+                console.log('Données de référence mises à jour');
+            }
+
             this.populateDataCenterFilter();
             this.displayPagination();
             if (this.state.countdownInterval) clearInterval(this.state.countdownInterval);
