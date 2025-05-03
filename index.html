@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFXIV Cosmic Exploration Monitor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/png" href="favicon.png">
+</head>
+
+<body>
+    <header>
+        <h1><i class="fas fa-rocket"></i> FFXIV Cosmic Exploration Monitor</h1>
+    </header>
+
+    <main class="container">
+        <div class="info-panel">
+            <div class="stats">
+                <div class="stat-item">
+                    <span>Dernière mise à jour:</span>
+                    <span id="lastUpdateTime">Chargement...</span>
+                </div>
+                <div class="stat-item">
+                    <span>Prochaine mise à jour:</span>
+                    <span id="nextUpdateTime">Chargement...</span>
+                </div>
+                <div class="stat-item countdown">
+                    <span>Temps restant:</span>
+                    <span id="countdownTimer">--:--</span>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="filter-container">
+                    <select id="datacenterFilter">
+                        <option value="all">Tous les Data Centers</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="rankingTable">
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Serveur</th>
+                        <th>Data Center</th>
+                        <th>Grade</th>
+                        <th>Progression</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="rankingTableBody">
+                    <tr class="loading-row">
+                        <td colspan="6">
+                            <div class="loading-spinner">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Chargement des données...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <button id="prevPage" disabled><i class="fas fa-chevron-left"></i> Précédent</button>
+            <span id="paginationInfo">Page 0 de 0</span>
+            <button id="nextPage" disabled>Suivant <i class="fas fa-chevron-right"></i></button>
+        </div>
+    </main>
+
+    <footer>
+        <p>© 2025 - FFXIV Cosmic Exploration Monitor - Données récupérées depuis <a
+                href="https://eu.finalfantasyxiv.com/lodestone/cosmic_exploration/report/" target="_blank">The
+                Lodestone</a></p>
+    </footer>
+
+    <script src="scraper.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
