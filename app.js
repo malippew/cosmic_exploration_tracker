@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     nextPageEl.addEventListener('click', () => {
-        if (state.currentPage < totalPages) {
+        if (state.currentPage < 9) {
             state.currentPage++;
             displayPagination();
         }
