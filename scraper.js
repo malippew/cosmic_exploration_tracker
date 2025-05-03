@@ -26,20 +26,32 @@ class FFXIVCosmicScraper {
      * @returns {Promise<boolean>} - Succès ou échec de la récupération
      */
     async fetchHtml() {
-        try {
-            // Utilisation d'un proxy CORS pour contourner les restrictions
-            const response = await fetch(`${this.proxy}${encodeURIComponent(this.url)}`);
-
-            if (!response.ok) {
-                throw new Error(`Erreur HTTP: ${response.status}`);
+        // Liste de proxys CORS à essayer
+        const proxies = [
+            "https://api.allorigins.win/raw?url=",
+            "https://corsproxy.io/?",
+            "https://thingproxy.freeboard.io/fetch/"
+        ];
+        let lastError = null;
+        for (const proxy of proxies) {
+            try {
+                const urlToFetch = proxy.includes('thingproxy')
+                    ? proxy + this.url
+                    : proxy + encodeURIComponent(this.url);
+                const response = await fetch(urlToFetch);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                this.htmlContent = await response.text();
+                this.proxy = proxy; // Mémorise le proxy qui fonctionne
+                return true;
+            } catch (error) {
+                lastError = error;
+                // Essaye le proxy suivant
             }
-
-            this.htmlContent = await response.text();
-            return true;
-        } catch (error) {
-            console.error(`Erreur lors de la récupération des données: ${error}`);
-            return false;
         }
+        console.error(`Erreur lors de la récupération des données via tous les proxys: ${lastError}`);
+        return false;
     }
 
     /**
