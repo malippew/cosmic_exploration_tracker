@@ -199,12 +199,12 @@ class CosmicApp {
                     if (!prev) return;
                     // Changement de grade
                     if (row.grade !== prev.grade) {
-                        notifications.push(`<i class='fas fa-trophy'></i> <b>${row.serverName}</b> est passé au grade <b>${row.grade}</b> (avant: ${prev.grade})`);
+                        notifications.push(`<i class='fas fa-trophy'></i> ${row.serverName} est passé au grade ${row.grade} (avant: ${prev.grade})`);
                     }
                     // Progression
                     const progressDiff = ((row.progressPercentage - prev.progress) * 100).toFixed(2);
                     if (progressDiff > 0.01) {
-                        notifications.push(`<i class='fas fa-arrow-up'></i> <b>${row.serverName}</b> a progressé de <b>${progressDiff}%</b>`);
+                        notifications.push(`<i class='fas fa-arrow-up'></i> ${row.serverName} a progressé de ${progressDiff}%`);
                     }
                 });
                 if (notifications.length > 0) {

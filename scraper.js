@@ -23,30 +23,32 @@ export class FFXIVCosmicScraper {
      * @returns {Promise<boolean>} - Succès ou échec de la récupération
      */
     async fetchHtml() {
-        // Liste de proxys CORS à essayer
         const proxies = [
             "https://api.allorigins.win/raw?url=",
             "https://corsproxy.io/?url=",
         ];
+        const maxAttemptsPerProxy = 3;
         let lastError = null;
-        // Ajout d'un cache buster pour éviter le cache proxy
         const cacheBuster = `?_t=${Date.now()}`;
-        for (const proxy of proxies) {
-            try {
-                // Ajoute le cache buster à l'URL du Lodestone
-                const urlWithBuster = this.url + cacheBuster;
-                const urlToFetch = proxy + encodeURIComponent(urlWithBuster);
 
-                const response = await fetch(urlToFetch);
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP: ${response.status}`);
+        for (const proxy of proxies) {
+            for (let attempt = 1; attempt <= maxAttemptsPerProxy; attempt++) {
+                try {
+                    const urlWithBuster = this.url + cacheBuster;
+                    const urlToFetch = proxy + encodeURIComponent(urlWithBuster);
+
+                    const response = await fetch(urlToFetch);
+                    if (!response.ok) {
+                        throw new Error(`Erreur HTTP: ${response.status}`);
+                    }
+                    this.htmlContent = await response.text();
+                    this.proxy = proxy;
+                    return true;
+                } catch (error) {
+                    lastError = error;
+                    // Petite pause entre les tentatives pour éviter le spam
+                    await new Promise(res => setTimeout(res, 300 * attempt));
                 }
-                this.htmlContent = await response.text();
-                this.proxy = proxy; // Mémorise le proxy qui fonctionne
-                return true;
-            } catch (error) {
-                lastError = error;
-                // Essaye le proxy suivant
             }
         }
         console.error(`Erreur lors de la récupération des données via tous les proxys: ${lastError}`);

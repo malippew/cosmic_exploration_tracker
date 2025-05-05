@@ -43,33 +43,33 @@
             </div>
         </div>
 
-        <div class="table-container">
-            <table id="rankingTable">
-                <thead>
-                    <tr>
-                        <th>Rang</th>
-                        <th>Serveur</th>
-                        <th>Data Center</th>
-                        <th>Grade</th>
-                        <th>Progression</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="rankingTableBody">
-                    <tr class="loading-row">
-                        <td colspan="6">
-                            <div class="loading-spinner">
-                                <i class="fas fa-spinner fa-spin"></i>
-                                <span>Chargement des données...</span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="table-notif-layout">
+            <div class="table-container">
+                <table id="rankingTable">
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Serveur</th>
+                            <th>Data Center</th>
+                            <th>Grade</th>
+                            <th>Progression</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankingTableBody">
+                        <tr class="loading-row">
+                            <td colspan="6">
+                                <div class="loading-spinner">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <span>Chargement des données...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="notifications" class="notifications"></div>
         </div>
-
-        <!-- Zone de notifications -->
-        <div id="notifications" class="notifications" style="margin-bottom:1.5rem;"></div>
 
         <div class="pagination">
             <button id="prevPage" disabled><i class="fas fa-chevron-left"></i> Précédent</button>
