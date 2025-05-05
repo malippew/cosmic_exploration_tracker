@@ -19,7 +19,8 @@ class CosmicApp {
             itemsPerPage: 10,
             selectedDataCenter: 'all',
             serverSearch: '',
-            refreshInProgress: false
+            refreshInProgress: false,
+            autoRefreshTimeout: null
         };
         this.lastDiffs = {};
         this.cacheDom();
@@ -183,6 +184,15 @@ class CosmicApp {
             if (this.state.countdownInterval) clearInterval(this.state.countdownInterval);
             this.state.countdownInterval = setInterval(this.updateCountdown, 1000);
             this.updateCountdown();
+
+            // Rafraîchissement automatique à la prochaine échéance
+            if (this.state.autoRefreshTimeout) clearTimeout(this.state.autoRefreshTimeout);
+            const msToNextUpdate = this.state.nextUpdateTime - new Date();
+            if (msToNextUpdate > 0) {
+                this.state.autoRefreshTimeout = setTimeout(() => {
+                    this.updateAndDisplay();
+                }, msToNextUpdate);
+            }
         } catch (error) {
             console.error('Erreur lors de la mise à jour des données:', error);
             this.dom.rankingTableBody.innerHTML = `<tr><td colspan="6" class="error"><i class="fas fa-exclamation-triangle"></i> Erreur lors de la récupération des données. Veuillez réessayer.</td></tr>`;
