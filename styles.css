@@ -139,7 +139,6 @@ select {
     background-color: var(--card-bg);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
-    overflow: hidden;
     margin-bottom: 1.5rem;
 }
 
