@@ -13,7 +13,7 @@ export class FFXIVCosmicScraper {
      * @param {string} url - URL pour scraper les données (optionnel)
      */
     constructor(url = null) {
-        this.url = url || "https://eu.finalfantasyxiv.com/lodestone/cosmic_exploration/report/";
+        this.url = url || "https://eu.finalfantasyxiv.com/lodestone/cosmic_exploration/report";
         this.htmlContent = null;
         this.data = [];
     }
@@ -29,9 +29,16 @@ export class FFXIVCosmicScraper {
             "https://corsproxy.io/?url=",
         ];
         let lastError = null;
+        // Ajout d'un cache buster pour éviter le cache proxy
+        const cacheBuster = `?_t=${Date.now()}`;
         for (const proxy of proxies) {
             try {
-                const urlToFetch = proxy + encodeURIComponent(this.url);
+                // Ajoute le cache buster à l'URL du Lodestone
+                const urlWithBuster = this.url + cacheBuster;
+                console.log(urlWithBuster)
+                const urlToFetch = proxy + encodeURIComponent(urlWithBuster);
+
+                console.log(urlToFetch)
 
                 const response = await fetch(urlToFetch);
                 if (!response.ok) {
