@@ -1,15 +1,13 @@
+"use strict"
+
 /**
  * FFXIVCosmicScraper - Une classe pour récupérer et traiter les données 
  * d'exploration cosmique de FFXIV Lodestone
  */
 
-// Utility function for safe DOM query
-function safeQuery(parent, selector) {
-    const el = parent.querySelector(selector);
-    return el ? el.textContent.trim() : '';
-}
+import { safeQuery } from "./utils.js"
 
-class FFXIVCosmicScraper {
+export class FFXIVCosmicScraper {
     /**
      * Constructeur
      * @param {string} url - URL pour scraper les données (optionnel)
@@ -18,7 +16,6 @@ class FFXIVCosmicScraper {
         this.url = url || "https://eu.finalfantasyxiv.com/lodestone/cosmic_exploration/report/";
         this.htmlContent = null;
         this.data = [];
-        this.proxy = "https://api.allorigins.win/raw?url=";
     }
 
     /**
@@ -29,15 +26,13 @@ class FFXIVCosmicScraper {
         // Liste de proxys CORS à essayer
         const proxies = [
             "https://api.allorigins.win/raw?url=",
-            "https://corsproxy.io/?",
-            "https://thingproxy.freeboard.io/fetch/"
+            "https://corsproxy.io/?url=",
         ];
         let lastError = null;
         for (const proxy of proxies) {
             try {
-                const urlToFetch = proxy.includes('thingproxy')
-                    ? proxy + this.url
-                    : proxy + encodeURIComponent(this.url);
+                const urlToFetch = proxy + encodeURIComponent(this.url);
+
                 const response = await fetch(urlToFetch);
                 if (!response.ok) {
                     throw new Error(`Erreur HTTP: ${response.status}`);
@@ -89,7 +84,6 @@ class FFXIVCosmicScraper {
 
     /**
      * Récupère et analyse les données d'exploration cosmique
-     * @returns {Promise<Array>} - Liste des données de serveur
      */
     async scrape() {
         if (!this.htmlContent && !(await this.fetchHtml())) {
@@ -144,9 +138,7 @@ class FFXIVCosmicScraper {
                 result.push(serverData);
             });
         });
-
         this.data = result;
-        return result;
     }
 
     /**
