@@ -139,7 +139,7 @@ table {
 
 th,
 td {
-    padding: .6rem;
+    padding: .32rem;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
 }
