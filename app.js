@@ -65,6 +65,20 @@ class CosmicApp {
                 this.displayPagination();
             }
         });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                if (this.state.currentPage > 1) {
+                    this.state.currentPage--;
+                    this.displayPagination();
+                }
+            } else if (e.key === 'ArrowRight') {
+                const totalPages = this.getTotalPages();
+                if (this.state.currentPage < totalPages) {
+                    this.state.currentPage++;
+                    this.displayPagination();
+                }
+            }
+        });
     }
 
     getFilteredRanking() {
@@ -124,29 +138,18 @@ class CosmicApp {
 
         pageData.forEach(row => {
             const statusClass = row.statusText.toLowerCase().includes('complete') ? 'status-complete' : 'status-progress';
-            const diffs = this.lastCalculatedDiffs[row.serverName] || {};
-
-            let gradeChange = '';
-            let progressChange = '';
-
-            if (diffs.gradeChanged) {
-                gradeChange = `<span class="change-indicator" title="Grade précédent: ${row.grade - 1}">★</span>`;
-            }
-            if (diffs.progressDiff > 0) {
-                progressChange = `<span class="change-indicator up" title="+${diffs.progressDiff.toFixed(2)}%">↑</span>`;
-            }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>#${row.rank}</td>
                 <td>${row.serverName}</td>
                 <td>${row.dataCenter}</td>
-                <td>${row.grade} ${gradeChange}</td>
+                <td>${row.grade}</td>
                 <td>
                     <div class="progress-bar">
                         <div class="progress-bar-fill" style="width: ${row.progress}"></div>
                     </div>
-                    ${row.progress} ${progressChange}
+                    ${row.progress}
                 </td>
                 <td class="${statusClass}">${row.statusText}</td>
             `;
@@ -172,68 +175,6 @@ class CosmicApp {
         try {
             await this.scraper.fetchHtml();
             await this.scraper.scrape();
-
-            const ranking = this.scraper.createRanking('all');
-
-            let previousRankingState = {};
-            try {
-                previousRankingState = JSON.parse(localStorage.getItem('previousRankingState') || '{}');
-            } catch (e) {
-                previousRankingState = {};
-            }
-
-            // Récupérer les différences stockées précédemment (important pour les rechargements de page)
-            try {
-                this.lastCalculatedDiffs = JSON.parse(localStorage.getItem('lastCalculatedDiffs') || '{}');
-            } catch (e) {
-                this.lastCalculatedDiffs = {};
-            }
-
-            // Vérifier si nous avons changé de cycle de mise à jour
-            const currentCycle = this.getCurrentCycle();
-            const lastCycle = localStorage.getItem('lastUpdateCycle');
-
-            const cycleChanged = !lastCycle || currentCycle !== lastCycle;
-
-            if (cycleChanged) {
-                console.log(`Nouveau cycle détecté: ${currentCycle} (précédent: ${lastCycle})`);
-
-                // Calculer les nouvelles différences uniquement si le cycle a changé
-                this.lastCalculatedDiffs = {};
-                ranking.forEach(row => {
-                    const prev = previousRankingState[row.serverName];
-                    let gradeChanged = false;
-                    let progressDiff = 0;
-                    if (prev) {
-                        if (row.grade !== prev.grade) {
-                            gradeChanged = true;
-                        }
-                        if (prev.progressNum !== row.progressNum) {
-                            progressDiff = row.progressNum - prev.progressNum;
-                        }
-                    }
-                    this.lastCalculatedDiffs[row.serverName] = {
-                        gradeChanged,
-                        progressDiff
-                    };
-                });
-
-                // Stocker les nouvelles différences calculées pour les prochains rechargements de page
-                localStorage.setItem('lastCalculatedDiffs', JSON.stringify(this.lastCalculatedDiffs));
-                localStorage.setItem('lastUpdateCycle', currentCycle);
-
-                // Mettre à jour l'état de référence pour le prochain cycle
-                const stateToStore = {};
-                ranking.forEach(row => {
-                    stateToStore[row.serverName] = {
-                        grade: row.grade,
-                        progressNum: row.progressPercentage * 100
-                    };
-                });
-                localStorage.setItem('previousRankingState', JSON.stringify(stateToStore));
-            } else {
-                console.log(`Toujours dans le même cycle: ${currentCycle}, utilisation des différences déjà calculées`);
-            }
 
             // Rempliy les data center dans le drop down
             this.populateDataCenterFilter();
