@@ -262,6 +262,20 @@ class CosmicApp {
             div.innerHTML = notification;
             notificationContainer.appendChild(div);
         });
+        // Sauvegarde des notifications dans le localStorage
+        try {
+            localStorage.setItem('cosmic_notifications', JSON.stringify(notifications));
+        } catch (e) { }
+    }
+
+    loadNotificationsFromStorage() {
+        try {
+            const data = localStorage.getItem('cosmic_notifications');
+            if (data) {
+                const notifications = JSON.parse(data);
+                this.displayNotifications(notifications);
+            }
+        } catch (e) { }
     }
 
     getCurrentCycle() {
@@ -290,6 +304,7 @@ class CosmicApp {
 
     init() {
         this.state.serverSearch = '';
+        this.loadNotificationsFromStorage();
         this.updateAndDisplay();
     }
 }
