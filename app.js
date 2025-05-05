@@ -177,6 +177,42 @@ class CosmicApp {
             await this.scraper.fetchHtml();
             await this.scraper.scrape();
 
+            // Sauvegarde de l'état précédent pour la détection des changements (localStorage)
+            const previousState = this._getLastRankingStateFromStorage();
+            const currentRanking = this.scraper.createRanking();
+            const currentState = {};
+            currentRanking.forEach(row => {
+                currentState[row.serverName] = {
+                    rank: row.rank,
+                    grade: row.grade,
+                    progress: row.progressPercentage,
+                    statusText: row.statusText
+                };
+            });
+            this._setLastRankingStateToStorage(currentState);
+
+            // Détection des changements et notifications
+            if (previousState && Object.keys(previousState).length > 0) {
+                const notifications = [];
+                currentRanking.forEach(row => {
+                    const prev = previousState[row.serverName];
+                    if (!prev) return;
+                    // Changement de grade
+                    if (row.grade !== prev.grade) {
+                        notifications.push(`<i class='fas fa-trophy'></i> <b>${row.serverName}</b> est passé au grade <b>${row.grade}</b> (avant: ${prev.grade})`);
+                    }
+                    // Progression
+                    const progressDiff = ((row.progressPercentage - prev.progress) * 100).toFixed(2);
+                    if (progressDiff > 0.01) {
+                        notifications.push(`<i class='fas fa-arrow-up'></i> <b>${row.serverName}</b> a progressé de <b>${progressDiff}%</b>`);
+                    }
+                });
+                if (notifications.length > 0) {
+                    this.displayNotifications(notifications);
+                }
+                // Si pas de changement, on ne touche pas aux notifications (elles restent affichées)
+            }
+
             // Rempliy les data center dans le drop down
             this.populateDataCenterFilter();
             this.displayPagination();
@@ -200,6 +236,34 @@ class CosmicApp {
             this.state.refreshInProgress = false;
         }
     }
+
+    // Stockage local de l'état précédent
+    _getLastRankingStateFromStorage() {
+        try {
+            const data = localStorage.getItem('cosmic_lastRankingState');
+            return data ? JSON.parse(data) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    _setLastRankingStateToStorage(state) {
+        try {
+            localStorage.setItem('cosmic_lastRankingState', JSON.stringify(state));
+        } catch (e) { }
+    }
+
+    displayNotifications(notifications) {
+        const notificationContainer = document.getElementById('notifications');
+        notificationContainer.innerHTML = '';
+        notifications.forEach(notification => {
+            const div = document.createElement('div');
+            div.className = 'notification';
+            div.innerHTML = notification;
+            notificationContainer.appendChild(div);
+        });
+    }
+
     getCurrentCycle() {
         const now = new Date();
         const hours = now.getHours();

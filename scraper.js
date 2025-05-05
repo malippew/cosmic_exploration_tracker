@@ -35,10 +35,7 @@ export class FFXIVCosmicScraper {
             try {
                 // Ajoute le cache buster à l'URL du Lodestone
                 const urlWithBuster = this.url + cacheBuster;
-                console.log(urlWithBuster)
                 const urlToFetch = proxy + encodeURIComponent(urlWithBuster);
-
-                console.log(urlToFetch)
 
                 const response = await fetch(urlToFetch);
                 if (!response.ok) {
