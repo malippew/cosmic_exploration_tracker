@@ -43,7 +43,8 @@ const state = {
     viewMode: 'table',
     activePlanet: COSMIC_PLANETS[0].id,
     currentPlanet: COSMIC_PLANETS[0],
-    darkMode: localStorage.getItem('darkTheme') === 'true'
+    darkMode: localStorage.getItem('darkTheme') === 'true',
+    resizeTimeout: null
 };
 
 // DOM Elements
@@ -117,6 +118,9 @@ function setupEventListeners() {
         updateViewMode();
     });
 
+    // Toggle Grid View automatic
+    window.addEventListener('resize', handleResize);
+
     // Planet Tabs
     const tabButtons = document.querySelectorAll('.tab-item');
     tabButtons.forEach(button => {
@@ -135,6 +139,19 @@ function setupEventListeners() {
             updatePlanetContent();
         });
     });
+}
+
+function handleResize() {
+    clearTimeout(state.resizeTimeout);
+    state.resizeTimeout = setTimeout(() => {
+        const width = window.innerWidth;
+        const newViewMode = width < 768 ? 'grid' : 'table';
+
+        if (state.viewMode !== newViewMode) {
+            state.viewMode = newViewMode;
+            updateViewMode();
+        }
+    }, 200);
 }
 
 // Toggle Theme
