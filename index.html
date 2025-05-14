@@ -4,86 +4,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FFXIV Cosmic Exploration Monitor</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/png" href="favicon.ico">
+    <title>FFXIV Cosmic Exploration Tracker</title>
+    <meta name="description"
+        content="Suivi en temps réel de la progression d'exploration cosmique pour tous les serveurs FFXIV">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Roboto:wght@300;400;500;700&family=Roboto+Mono&display=swap"
+        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <header>
-        <h1><i class="fas fa-rocket"></i> FFXIV Cosmic Exploration Monitor</h1>
-    </header>
-
-    <main class="container">
-        <div class="info-panel">
-            <div class="stats">
-                <div class="stat-item">
-                    <span>Last update:</span>
-                    <span id="lastUpdateTime">Loading...</span>
-                </div>
-                <div class="stat-item">
-                    <span>Next Update:</span>
-                    <span id="nextUpdateTime">Chargement...</span>
-                </div>
-                <div class="stat-item countdown">
-                    <span>Time left:</span>
-                    <span id="countdownTimer">--:--</span>
+    <div class="app" id="app">
+        <header class="header">
+            <div class="container">
+                <div class="header-content">
+                    <div class="header-logo">
+                        <div class="logo-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                class="meteor-icon">
+                                <circle cx="12" cy="12" r="10" />
+                                <circle cx="12" cy="12" r="6" />
+                                <circle cx="12" cy="12" r="2" />
+                                <path d="M12 2 L12 4" />
+                                <path d="M12 20 L12 22" />
+                                <path d="M2 12 L4 12" />
+                                <path d="M20 12 L22 12" />
+                                <path d="M4.93 4.93 L6.34 6.34" />
+                                <path d="M17.66 17.66 L19.07 19.07" />
+                                <path d="M4.93 19.07 L6.34 17.66" />
+                                <path d="M17.66 6.34 L19.07 4.93" />
+                            </svg>
+                        </div>
+                        <h1 class="header-title">FFXIV Cosmic Exploration Tracker</h1>
+                    </div>
+                    <div class="header-actions">
+                        <button id="theme-toggle" class="btn btn-theme">
+                            <span class="material-icons">dark_mode</span>
+                        </button>
+                        <button id="refresh-btn" class="btn btn-refresh">
+                            <span class="material-icons">refresh</span>
+                            <span>Rafraîchir</span>
+                        </button>
+                        <div id="last-updated" class="last-updated">
+                            Jamais mis à jour
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="controls">
-                <div class="filter-container">
-                    <select id="datacenterFilter">
-                        <option value="all">All Datacenters</option>
-                    </select>
+        </header>
+
+        <main class="main">
+            <div class="container">
+                <div class="planets-tabs">
+                    <div class="tabs-list">
+                        <button class="tab-item active" data-planet="sinus-ardorum">
+                            <div class="tab-content">
+                                <span class="tab-title">Sinus Ardorum</span>
+                                <span class="tab-patch">Patch 7.21</span>
+                            </div>
+                        </button>
+                        <button class="tab-item" data-planet="planet-2" disabled>
+                            <div class="tab-content">
+                                <span class="tab-title">Planet 2</span>
+                                <span class="tab-patch">Patch 7.3X</span>
+                                <span class="tab-badge">Soon</span>
+                            </div>
+                        </button>
+                        <button class="tab-item" data-planet="planet-3" disabled>
+                            <div class="tab-content">
+                                <span class="tab-title">Planet 3</span>
+                                <span class="tab-patch">Patch 7.4X</span>
+                                <span class="tab-badge">Soon</span>
+                            </div>
+                        </button>
+                        <button class="tab-item" data-planet="planet-4" disabled>
+                            <div class="tab-content">
+                                <span class="tab-title">Planet 4</span>
+                                <span class="tab-patch">Patch 7.5X</span>
+                                <span class="tab-badge">Soon</span>
+                            </div>
+                        </button>
+                    </div>
                 </div>
-                <div class="search-container">
-                    <input type="text" id="serverSearch" placeholder="Find a server..." autocomplete="off" />
+
+                <div class="status-bar">
+                    <div class="status-info">
+                        <h2 class="status-title">Exploration Status</h2>
+                        <p class="status-description">
+                            Suivi en temps réel de la progression d'exploration cosmique pour tous les serveurs FFXIV.
+                        </p>
+                    </div>
+                    <div class="status-controls">
+                        <div class="datacenter-select">
+                            <label for="datacenter-select" class="select-label">Data Center</label>
+                            <select id="datacenter-select" class="select">
+                                <option value="all">All Data Centers</option>
+                                <!-- Data centers will be added dynamically -->
+                            </select>
+                        </div>
+                        <div class="view-toggle">
+                            <label class="select-label">View Mode</label>
+                            <div class="toggle-buttons">
+                                <button id="table-view-btn" class="btn btn-view active">
+                                    <span class="material-icons">view_list</span>
+                                    Table
+                                </button>
+                                <button id="grid-view-btn" class="btn btn-view">
+                                    <span class="material-icons">grid_view</span>
+                                    Grid
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="loading" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-skeleton"></div>
+                </div>
+
+                <div id="error" class="error-container hidden">
+                    <div class="error-icon">
+                        <span class="material-icons">error</span>
+                    </div>
+                    <h3 class="error-title">Unable to Load Data</h3>
+                    <p class="error-message">
+                        We encountered an error while fetching the latest exploration data.
+                    </p>
+                    <button id="retry-btn" class="btn btn-retry">
+                        <span class="material-icons">refresh</span>
+                        Retry
+                    </button>
+                </div>
+
+                <div id="coming-soon" class="coming-soon-container hidden">
+                    <h3 class="coming-soon-title">Coming Soon</h3>
+                    <p class="coming-soon-message">
+                        Data for this planet will be available when the patch is released.
+                    </p>
+                    <p class="coming-soon-submessage">
+                        Please check back after the patch is released.
+                    </p>
+                </div>
+
+                <div id="content-container" class="content-container hidden">
+                    <div id="table-view" class="table-container">
+                        <table class="exploration-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Server</th>
+                                    <th>Data Center</th>
+                                    <th>Grade</th>
+                                    <th>Progress</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body">
+                                <!-- Server data will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="grid-view" class="grid-container hidden">
+                        <!-- Cards will be added dynamically -->
+                    </div>
+
+                    <div id="data-summary" class="data-summary hidden">
+                        <p class="summary-text">
+                            Showing <span id="data-count">0</span> servers
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
 
-        <div class="table-notif-layout">
-            <div class="table-container">
-                <table id="rankingTable">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Server</th>
-                            <th>Data Center</th>
-                            <th>Grade</th>
-                            <th>Progression</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="rankingTableBody">
-                        <tr class="loading-row">
-                            <td colspan="6">
-                                <div class="loading-spinner">
-                                    <i class="fas fa-spinner fa-spin"></i>
-                                    <span>Loading data...</span>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+        <footer class="footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-copyright">
+                        © <span id="current-year"></span> FFXIV Cosmic Exploration Tracker | Not affiliated with Square
+                        Enix
+                    </div>
+                    <div class="footer-links">
+                        <button class="footer-link">About</button>
+                        <button class="footer-link">Help</button>
+                        <button class="footer-link">API</button>
+                    </div>
+                </div>
             </div>
-            <div id="notifications" class="notifications"></div>
-        </div>
+        </footer>
+    </div>
 
-        <div class="pagination">
-            <button id="prevPage" disabled><i class="fas fa-chevron-left"></i> Previous</button>
-            <span id="paginationInfo">Page 0 of 0</span>
-            <button id="nextPage" disabled>Next <i class="fas fa-chevron-right"></i></button>
-        </div>
-    </main>
-
-    <footer>
-        <p>© 2025 - FFXIV Cosmic Exploration Monitor - Data retrieved from <a
-                href="https://eu.finalfantasyxiv.com/lodestone/cosmic_exploration/report/" target="_blank">The
-                Lodestone</a></p>
-    </footer>
-    <script type="module" src="app.js"></script>
+    <script src="ffxiv-cosmic-scraper.js"></script>
+    <script src="app.js"></script>
 </body>
 
 </html>

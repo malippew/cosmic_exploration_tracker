@@ -1,314 +1,404 @@
-"use strict"
-
 /**
- * FFXIV Cosmic Exploration Monitor
- * Application principale pour afficher et mettre à jour les données d'exploration cosmique
+ * FFXIV Cosmic Exploration Tracker
+ * Application JavaScript principale
  */
 
-import { FFXIVCosmicScraper } from "./scraper.js";
-import { calculateNextUpdateTime, formatDateTime, formatTimeRemaining } from "./utils.js";
+// Données des planètes
+const COSMIC_PLANETS = [
+    {
+        id: "sinus-ardorum",
+        name: "Sinus Ardorum",
+        patch: "7.21",
+        isActive: true,
+        url: "https://eu.finalfantasyxiv.com/lodestone/cosmic_exploration/report"
+    },
+    {
+        id: "planet-2",
+        name: "Planet 2",
+        patch: "7.3X",
+        isActive: false
+    },
+    {
+        id: "planet-3",
+        name: "Planet 3",
+        patch: "7.4X",
+        isActive: false
+    },
+    {
+        id: "planet-4",
+        name: "Planet 4",
+        patch: "7.5X",
+        isActive: false
+    }
+];
 
-class CosmicApp {
-    constructor() {
-        this.scraper = new FFXIVCosmicScraper();
-        this.state = {
-            lastUpdateTime: null,
-            nextUpdateTime: null,
-            countdownInterval: null,
-            currentPage: 1,
-            itemsPerPage: 10,
-            selectedDataCenter: 'all',
-            serverSearch: '',
-            refreshInProgress: false,
-            autoRefreshTimeout: null
-        };
-        this.lastDiffs = {};
-        this.cacheDom();
-        this.addEventListeners();
-        this.init();
+// État de l'application
+const state = {
+    data: [],
+    dataCenters: [],
+    lastUpdated: null,
+    isLoading: false,
+    isError: false,
+    dataCenter: 'all',
+    viewMode: 'table',
+    activePlanet: COSMIC_PLANETS[0].id,
+    currentPlanet: COSMIC_PLANETS[0],
+    darkMode: localStorage.getItem('darkTheme') === 'true'
+};
+
+// DOM Elements
+const domElements = {
+    themeToggle: document.getElementById('theme-toggle'),
+    refreshBtn: document.getElementById('refresh-btn'),
+    lastUpdated: document.getElementById('last-updated'),
+    datacenterSelect: document.getElementById('datacenter-select'),
+    tableViewBtn: document.getElementById('table-view-btn'),
+    gridViewBtn: document.getElementById('grid-view-btn'),
+    tableBody: document.getElementById('table-body'),
+    gridView: document.getElementById('grid-view'),
+    dataCount: document.getElementById('data-count'),
+    dataSummary: document.getElementById('data-summary'),
+    loading: document.getElementById('loading'),
+    error: document.getElementById('error'),
+    retryBtn: document.getElementById('retry-btn'),
+    comingSoon: document.getElementById('coming-soon'),
+    contentContainer: document.getElementById('content-container'),
+    currentYear: document.getElementById('current-year'),
+    tableView: document.getElementById('table-view'),
+};
+
+// Initialize
+function init() {
+    // Set current year in footer
+    domElements.currentYear.textContent = new Date().getFullYear();
+
+    // Set dark mode
+    if (state.darkMode) {
+        document.body.classList.add('dark-theme');
+        domElements.themeToggle.querySelector('.material-icons').textContent = 'light_mode';
     }
 
-    cacheDom() {
-        this.dom = {
-            lastUpdateTime: document.getElementById('lastUpdateTime'),
-            nextUpdateTime: document.getElementById('nextUpdateTime'),
-            countdownTimer: document.getElementById('countdownTimer'),
-            datacenterFilter: document.getElementById('datacenterFilter'),
-            serverSearch: document.getElementById('serverSearch'),
-            rankingTableBody: document.getElementById('rankingTableBody'),
-            prevPage: document.getElementById('prevPage'),
-            nextPage: document.getElementById('nextPage'),
-            paginationInfo: document.getElementById('paginationInfo')
-        };
-    }
+    // Setup event listeners
+    setupEventListeners();
 
-    addEventListeners() {
-        this.dom.datacenterFilter.addEventListener('change', () => {
-            this.state.selectedDataCenter = this.dom.datacenterFilter.value;
-            this.state.currentPage = 1;
-            this.displayPagination();
+    // Load data
+    loadCosmicData();
+}
+
+// Setup Event Listeners
+function setupEventListeners() {
+    // Theme Toggle
+    domElements.themeToggle.addEventListener('click', toggleTheme);
+
+    // Refresh Button
+    domElements.refreshBtn.addEventListener('click', () => {
+        loadCosmicData(true);
+    });
+
+    // Retry Button
+    domElements.retryBtn.addEventListener('click', () => {
+        loadCosmicData(true);
+    });
+
+    // Data Center Select
+    domElements.datacenterSelect.addEventListener('change', (e) => {
+        state.dataCenter = e.target.value;
+        updateUI();
+    });
+
+    // View Toggle
+    domElements.tableViewBtn.addEventListener('click', () => {
+        state.viewMode = 'table';
+        updateViewMode();
+    });
+
+    domElements.gridViewBtn.addEventListener('click', () => {
+        state.viewMode = 'grid';
+        updateViewMode();
+    });
+
+    // Planet Tabs
+    const tabButtons = document.querySelectorAll('.tab-item');
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            if (button.disabled) return;
+
+            // Update active tab
+            tabButtons.forEach(tab => tab.classList.remove('active'));
+            button.classList.add('active');
+
+            // Update active planet
+            const planetId = button.dataset.planet;
+            state.activePlanet = planetId;
+            state.currentPlanet = COSMIC_PLANETS.find(p => p.id === planetId);
+
+            updatePlanetContent();
         });
-        this.dom.serverSearch.addEventListener('input', () => {
-            this.state.serverSearch = this.dom.serverSearch.value.trim();
-            this.state.currentPage = 1;
-            this.displayPagination();
-        });
-        this.dom.prevPage.addEventListener('click', () => {
-            if (this.state.currentPage > 1) {
-                this.state.currentPage--;
-                this.displayPagination();
-            }
-        });
-        this.dom.nextPage.addEventListener('click', () => {
-            const totalPages = this.getTotalPages();
-            if (this.state.currentPage < totalPages) {
-                this.state.currentPage++;
-                this.displayPagination();
-            }
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
-                if (this.state.currentPage > 1) {
-                    this.state.currentPage--;
-                    this.displayPagination();
-                }
-            } else if (e.key === 'ArrowRight') {
-                const totalPages = this.getTotalPages();
-                if (this.state.currentPage < totalPages) {
-                    this.state.currentPage++;
-                    this.displayPagination();
-                }
-            }
-        });
-    }
+    });
+}
 
-    getFilteredRanking() {
-        let ranking = this.scraper.createRanking(this.state.selectedDataCenter);
-        if (this.state.serverSearch && this.state.serverSearch.length > 0) {
-            const search = this.state.serverSearch.toLowerCase();
-            ranking = ranking.filter(row => row.serverName.toLowerCase().includes(search));
-        }
-        return ranking;
-    }
+// Toggle Theme
+function toggleTheme() {
+    state.darkMode = !state.darkMode;
+    localStorage.setItem('darkTheme', state.darkMode);
 
-    getTotalPages() {
-        const ranking = this.getFilteredRanking();
-        return Math.max(1, Math.ceil(ranking.length / this.state.itemsPerPage));
-    }
-
-    updateCountdown = () => {
-        if (!this.state.nextUpdateTime) return;
-        const now = new Date();
-        const timeRemaining = (this.state.nextUpdateTime - now) / 1000;
-        if (timeRemaining <= 0) {
-            if (!this.state.refreshInProgress) this.updateAndDisplay();
-            return;
-        }
-        this.dom.countdownTimer.textContent = formatTimeRemaining(timeRemaining);
-    };
-
-    populateDataCenterFilter() {
-        const dataCenters = this.scraper.getDataCenters();
-        this.dom.datacenterFilter.innerHTML = '<option value="all">Tous les Data Centers</option>';
-        dataCenters.forEach(dc => {
-            const option = document.createElement('option');
-            option.value = dc;
-            option.textContent = dc;
-            this.dom.datacenterFilter.appendChild(option);
-        });
-        this.dom.datacenterFilter.value = this.state.selectedDataCenter;
-    }
-
-    displayPagination() {
-        const ranking = this.getFilteredRanking();
-        if (!ranking || ranking.length === 0) {
-            this.dom.rankingTableBody.innerHTML = `<tr><td colspan="6" class="no-data">Aucune donnée disponible</td></tr>`;
-            this.dom.prevPage.disabled = true;
-            this.dom.nextPage.disabled = true;
-            this.dom.paginationInfo.textContent = 'Page 0 de 0';
-            return;
-        }
-        const totalItems = ranking.length;
-        const totalPages = this.getTotalPages();
-        this.state.currentPage = Math.max(1, Math.min(this.state.currentPage, totalPages));
-        const startIdx = (this.state.currentPage - 1) * this.state.itemsPerPage;
-        const endIdx = Math.min(startIdx + this.state.itemsPerPage, totalItems);
-        const pageData = ranking.slice(startIdx, endIdx);
-
-        this.dom.rankingTableBody.innerHTML = '';
-
-        pageData.forEach(row => {
-            const statusClass = row.statusText.toLowerCase().includes('complete') ? 'status-complete' : 'status-progress';
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>#${row.rank}</td>
-                <td>${row.serverName}</td>
-                <td>${row.dataCenter}</td>
-                <td>${row.grade}</td>
-                <td>
-                    <div class="progress-bar">
-                        <div class="progress-bar-fill" style="width: ${row.progress}"></div>
-                    </div>
-                    ${row.progress}
-                </td>
-                <td class="${statusClass}">${row.statusText}</td>
-            `;
-            this.dom.rankingTableBody.appendChild(tr);
-        });
-        this.dom.prevPage.disabled = this.state.currentPage === 1;
-        this.dom.nextPage.disabled = this.state.currentPage === totalPages;
-        this.dom.paginationInfo.textContent = `Page ${this.state.currentPage} de ${totalPages}`;
-    }
-
-    async updateAndDisplay() {
-        if (this.state.refreshInProgress) return;
-        this.state.refreshInProgress = true;
-
-        // Retirer 30 minutes par rapport au next Update
-        this.state.lastUpdateTime = new Date(calculateNextUpdateTime().getTime() - 30 * 60 * 1000);
-        this.state.nextUpdateTime = calculateNextUpdateTime();
-
-        this.dom.lastUpdateTime.textContent = formatDateTime(this.state.lastUpdateTime);
-        this.dom.nextUpdateTime.textContent = formatDateTime(this.state.nextUpdateTime);
-        this.dom.countdownTimer.textContent = formatTimeRemaining((this.state.nextUpdateTime - this.state.lastUpdateTime) / 1000);
-
-        try {
-            await this.scraper.fetchHtml();
-            await this.scraper.scrape();
-
-            // Sauvegarde de l'état précédent pour la détection des changements (localStorage)
-            const previousState = this._getLastRankingStateFromStorage();
-            const currentRanking = this.scraper.createRanking();
-            const currentState = {};
-            currentRanking.forEach(row => {
-                currentState[row.serverName] = {
-                    rank: row.rank,
-                    grade: row.grade,
-                    progress: row.progressPercentage,
-                    statusText: row.statusText
-                };
-            });
-            this._setLastRankingStateToStorage(currentState);
-
-            // Détection des changements et notifications
-            if (previousState && Object.keys(previousState).length > 0) {
-                const notifications = [];
-                currentRanking.forEach(row => {
-                    const prev = previousState[row.serverName];
-                    if (!prev) return;
-                    // Changement de grade
-                    if (row.grade !== prev.grade) {
-                        notifications.push(`<i class='fas fa-trophy'></i> ${row.serverName} est passé au grade ${row.grade} (avant: ${prev.grade})`);
-                    }
-                    // Progression
-                    const progressDiff = ((row.progressPercentage - prev.progress) * 100).toFixed(2);
-                    if (progressDiff > 0.01) {
-                        notifications.push(`<i class='fas fa-arrow-up'></i> ${row.serverName} a progressé de ${progressDiff}%`);
-                    }
-                });
-                if (notifications.length > 0) {
-                    this.displayNotifications(notifications);
-                }
-                // Si pas de changement, on ne touche pas aux notifications (elles restent affichées)
-            }
-
-            // Rempliy les data center dans le drop down
-            this.populateDataCenterFilter();
-            this.displayPagination();
-
-            if (this.state.countdownInterval) clearInterval(this.state.countdownInterval);
-            this.state.countdownInterval = setInterval(this.updateCountdown, 1000);
-            this.updateCountdown();
-
-            // Rafraîchissement automatique à la prochaine échéance
-            if (this.state.autoRefreshTimeout) clearTimeout(this.state.autoRefreshTimeout);
-            const msToNextUpdate = this.state.nextUpdateTime - new Date();
-            if (msToNextUpdate > 0) {
-                this.state.autoRefreshTimeout = setTimeout(() => {
-                    this.updateAndDisplay();
-                }, msToNextUpdate);
-            }
-        } catch (error) {
-            console.error('Erreur lors de la mise à jour des données:', error);
-            this.dom.rankingTableBody.innerHTML = `<tr><td colspan="6" class="error"><i class="fas fa-exclamation-triangle"></i> Erreur lors de la récupération des données. Veuillez réessayer.</td></tr>`;
-        } finally {
-            this.state.refreshInProgress = false;
-        }
-    }
-
-    // Stockage local de l'état précédent
-    _getLastRankingStateFromStorage() {
-        try {
-            const data = localStorage.getItem('cosmic_lastRankingState');
-            return data ? JSON.parse(data) : {};
-        } catch (e) {
-            return {};
-        }
-    }
-
-    _setLastRankingStateToStorage(state) {
-        try {
-            localStorage.setItem('cosmic_lastRankingState', JSON.stringify(state));
-        } catch (e) { }
-    }
-
-    displayNotifications(notifications) {
-        const notificationContainer = document.getElementById('notifications');
-        notificationContainer.innerHTML = '';
-        notifications.forEach(notification => {
-            const div = document.createElement('div');
-            div.className = 'notification';
-            div.innerHTML = notification;
-            notificationContainer.appendChild(div);
-        });
-        // Sauvegarde des notifications dans le localStorage
-        try {
-            localStorage.setItem('cosmic_notifications', JSON.stringify(notifications));
-        } catch (e) { }
-    }
-
-    loadNotificationsFromStorage() {
-        try {
-            const data = localStorage.getItem('cosmic_notifications');
-            if (data) {
-                const notifications = JSON.parse(data);
-                this.displayNotifications(notifications);
-            }
-        } catch (e) { }
-    }
-
-    getCurrentCycle() {
-        const now = new Date();
-        const hours = now.getHours();
-        const minutes = now.getMinutes();
-        const day = now.getDate();
-        const month = now.getMonth() + 1;
-        const year = now.getFullYear();
-
-        let cycleMinutes;
-        let cycleHours = hours;
-
-        if (minutes >= 2 && minutes < 32) {
-            cycleMinutes = "02";
-        } else if (minutes >= 32) {
-            cycleMinutes = "32";
-        } else { // minutes 0-1
-            cycleMinutes = "32";
-            cycleHours = (hours - 1 + 24) % 24;
-        }
-
-        // Format: YYYY-MM-DD-HH:MM
-        return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}-${cycleHours.toString().padStart(2, '0')}:${cycleMinutes}`;
-    }
-
-    init() {
-        this.state.serverSearch = '';
-        this.loadNotificationsFromStorage();
-        this.updateAndDisplay();
+    if (state.darkMode) {
+        document.body.classList.add('dark-theme');
+        domElements.themeToggle.querySelector('.material-icons').textContent = 'light_mode';
+    } else {
+        document.body.classList.remove('dark-theme');
+        domElements.themeToggle.querySelector('.material-icons').textContent = 'dark_mode';
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    new CosmicApp();
-});
+// Update View Mode
+function updateViewMode() {
+    // Update buttons
+    domElements.tableViewBtn.classList.toggle('active', state.viewMode === 'table');
+    domElements.gridViewBtn.classList.toggle('active', state.viewMode === 'grid');
+
+    // Update view containers
+    domElements.tableView.classList.toggle('hidden', state.viewMode !== 'table');
+    domElements.gridView.classList.toggle('hidden', state.viewMode !== 'grid');
+}
+
+// Update Planet Content
+function updatePlanetContent() {
+    if (!state.currentPlanet.isActive) {
+        // Show coming soon for inactive planets
+        domElements.loading.classList.add('hidden');
+        domElements.error.classList.add('hidden');
+        domElements.contentContainer.classList.add('hidden');
+        domElements.comingSoon.classList.remove('hidden');
+
+        // Update coming soon message with planet info
+        const messageElement = domElements.comingSoon.querySelector('.coming-soon-message');
+        messageElement.textContent = `Data for ${state.currentPlanet.name} will be available in Patch ${state.currentPlanet.patch}`;
+    } else {
+        // Load data for active planet
+        domElements.comingSoon.classList.add('hidden');
+        loadCosmicData();
+    }
+}
+
+// Format time difference
+function formatTimeDiff(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.round(diffMs / 60000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins === 1) return '1 minute ago';
+    if (diffMins < 60) return `${diffMins} minutes ago`;
+    if (diffMins < 120) return '1 hour ago';
+    return `${Math.floor(diffMins / 60)} hours ago`;
+}
+
+// Load Cosmic Data
+async function loadCosmicData(forceRefresh = false) {
+    try {
+        state.isLoading = true;
+        state.isError = false;
+        updateLoadingState();
+
+        // Create scraper instance
+        const scraper = new FFXIVCosmicScraper(state.currentPlanet.url);
+
+        // Fetch data
+        await scraper.scrape();
+
+        // Get data centers and rankings
+        state.dataCenters = scraper.getDataCenters();
+        state.data = scraper.createRanking();
+        state.lastUpdated = new Date();
+
+        // Update data centers dropdown
+        updateDataCentersDropdown();
+
+        state.isLoading = false;
+        updateUI();
+    } catch (error) {
+        console.error('Error loading cosmic data:', error);
+        state.isLoading = false;
+        state.isError = true;
+        updateLoadingState();
+    }
+}
+
+// Update Data Centers Dropdown
+function updateDataCentersDropdown() {
+    // Clear all options except 'all'
+    const selectElement = domElements.datacenterSelect;
+    while (selectElement.options.length > 1) {
+        selectElement.remove(1);
+    }
+
+    // Add data centers
+    state.dataCenters.forEach(dc => {
+        const option = document.createElement('option');
+        option.value = dc;
+        option.textContent = dc;
+        selectElement.appendChild(option);
+    });
+}
+
+// Update Loading State
+function updateLoadingState() {
+    // Handle loading state
+    domElements.loading.classList.toggle('hidden', !state.isLoading);
+
+    // Handle error state
+    domElements.error.classList.toggle('hidden', !state.isError);
+
+    // Handle content
+    domElements.contentContainer.classList.toggle('hidden', state.isLoading || state.isError);
+
+    // Update refresh button
+    domElements.refreshBtn.disabled = state.isLoading;
+    domElements.refreshBtn.querySelector('span:not(.material-icons)').textContent =
+        state.isLoading ? 'Refreshing...' : 'Refresh';
+    domElements.refreshBtn.querySelector('.material-icons').textContent =
+        state.isLoading ? 'hourglass_empty' : 'refresh';
+
+    // Update last updated
+    if (state.lastUpdated) {
+        domElements.lastUpdated.textContent = `Last updated: ${formatTimeDiff(state.lastUpdated)}`;
+    }
+}
+
+// Update UI with current state
+function updateUI() {
+    updateLoadingState();
+
+    // Filter data by selected data center
+    const filteredData = state.data.filter(
+        server => state.dataCenter === 'all' || server.dataCenter === state.dataCenter
+    );
+
+    // Update data count
+    domElements.dataCount.textContent = filteredData.length;
+    domElements.dataSummary.classList.toggle('hidden', filteredData.length === 0);
+
+    // Update table view
+    updateTableView(filteredData);
+
+    // Update grid view
+    updateGridView(filteredData);
+
+    // Update view mode
+    updateViewMode();
+}
+
+// Get progress bar segments HTML
+function getProgressBarSegments(server) {
+    const segments = [];
+    const filledSegments = Math.ceil(server.progressPercentage * 8);
+    const isComplete = server.statusText.toLowerCase().includes('complete') || server.progressPercentage >= 1.0;
+
+    for (let i = 0; i < 8; i++) {
+        const isFilled = i < filledSegments;
+        const classes = [
+            'progress-segment',
+            isFilled ? 'filled' : '',
+            isFilled && isComplete ? 'complete' : ''
+        ].filter(Boolean).join(' ');
+
+        segments.push(`<div class="${classes}"></div>`);
+    }
+
+    return segments.join('');
+}
+
+// Update Table View
+function updateTableView(data) {
+    domElements.tableBody.innerHTML = '';
+
+    data.forEach(server => {
+        const row = document.createElement('tr');
+
+        // Rank
+        const rankCell = document.createElement('td');
+        rankCell.innerHTML = `<div class="rank-badge">${server.rank}</div>`;
+
+        // Server
+        const serverCell = document.createElement('td');
+        serverCell.innerHTML = `<div class="server-name">${server.serverName}</div>`;
+
+        // Data Center
+        const dcCell = document.createElement('td');
+        dcCell.innerHTML = `<div class="data-center">${server.dataCenter}</div>`;
+
+        // Grade
+        const gradeCell = document.createElement('td');
+        gradeCell.innerHTML = `<div class="grade">${server.grade}</div>`;
+
+        // Progress
+        const progressCell = document.createElement('td');
+        progressCell.innerHTML = `
+      <div class="progress-info">
+        <div class="progress-header">
+          <span class="progress-status">${server.statusText}</span>
+          <span class="progress-value">${server.progress}</span>
+        </div>
+        <div class="progress-bar">
+          ${getProgressBarSegments(server)}
+        </div>
+      </div>
+    `;
+
+        // Add cells to row
+        row.appendChild(rankCell);
+        row.appendChild(serverCell);
+        row.appendChild(dcCell);
+        row.appendChild(gradeCell);
+        row.appendChild(progressCell);
+
+        // Add row to table
+        domElements.tableBody.appendChild(row);
+    });
+}
+
+// Update Grid View
+function updateGridView(data) {
+    domElements.gridView.innerHTML = '';
+
+    data.forEach(server => {
+        const card = document.createElement('div');
+        card.className = 'server-card';
+
+        card.innerHTML = `
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">${server.serverName}</h3>
+          <div class="card-datacenter">${server.dataCenter}</div>
+        </div>
+        <div class="card-rank">${server.rank}</div>
+      </div>
+      <div class="card-body">
+        <div class="card-stats">
+          <div>
+            <span class="card-grade-label">Grade:</span>
+            <span class="card-grade-value">${server.grade}</span>
+          </div>
+          <div class="card-progress-value">${server.progress}</div>
+        </div>
+        <div class="card-progress-bar">
+          ${getProgressBarSegments(server)}
+        </div>
+        <div class="card-status">${server.statusText}</div>
+      </div>
+    `;
+
+        domElements.gridView.appendChild(card);
+    });
+}
+
+// Update last updated text periodically
+setInterval(() => {
+    if (state.lastUpdated) {
+        domElements.lastUpdated.textContent = `Last updated: ${formatTimeDiff(state.lastUpdated)}`;
+    }
+}, 60000); // Update every minute
+
+// Initialize app when DOM is loaded
+document.addEventListener('DOMContentLoaded', init);
