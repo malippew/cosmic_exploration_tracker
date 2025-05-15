@@ -30,7 +30,7 @@ class FFXIVCosmicScraper {
      * @returns {Promise<boolean>} - Succès ou échec de la récupération
      */
     async fetchHtml() {
-        const proxy = "https://proxy.willot-ph.workers.dev/?url="
+        const proxy = "https://proxy.malippew.workers.dev/?url="
         const cacheBuster = `?_t=${Date.now()}`;
 
         try {
